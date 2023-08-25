@@ -1,4 +1,4 @@
-package local.segundoprojeto;
+
 
 public class Funcionario {
     private int codigo;

@@ -1,113 +1,117 @@
 
+import java.sql.*;
 
-import java.util.Scanner;
+public class DAO {
+	private Connection conexao;
+	
+	public DAO() {
+		conexao = null;
+	}
+	
+	public boolean conectar() {
+		String driverName = "org.postgresql.Driver";                    
+		String serverName = "localhost";
+		String mydatabase = "funcionarios";
+		int porta = 5432;
+		String url = "jdbc:postgresql://" + serverName + ":" + porta +"/" + mydatabase;
+		String username = "ti2cc";
+		String password = "ti@cc";
+		boolean status = false;
 
-public class Principal {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        DAO dao = new DAO();
+		try {
+			Class.forName(driverName);
+			conexao = DriverManager.getConnection(url, username, password);
+			status = (conexao == null);
+			System.out.println("Conexão efetuada com o postgres!");
+		} catch (ClassNotFoundException e) { 
+			System.err.println("Conexão NÃO efetuada com o postgres -- Driver não encontrado -- " + e.getMessage());
+		} catch (SQLException e) {
+			System.err.println("Conexão NÃO efetuada com o postgres -- " + e.getMessage());
+		}
 
-        dao.conectar();
-
-        int opcao;
-        do {
-            System.out.println("Menu:");
-            System.out.println("1. Listar Funcionários");
-            System.out.println("2. Inserir Funcionário");
-            System.out.println("3. Excluir Funcionário");
-            System.out.println("4. Atualizar Funcionário");
-            System.out.println("5. Sair");
-            System.out.print("Escolha uma opção: ");
-            opcao = scanner.nextInt();
-            scanner.nextLine(); // Consume the newline character
-
-            switch (opcao) {
-                case 1:
-                    listarFuncionarios(dao);
-                    break;
-                case 2:
-                    inserirFuncionario(scanner, dao);
-                    break;
-                case 3:
-                    excluirFuncionario(scanner, dao);
-                    break;
-                case 4:
-                    atualizarFuncionario(scanner, dao);
-                    break;
-                case 5:
-                    System.out.println("Encerrando o programa.");
-                    break;
-                default:
-                    System.out.println("Opção inválida. Escolha uma opção válida.");
-            }
-        } while (opcao != 5);
-
-        dao.close();
-        scanner.close();
-    }
-
-    public static void listarFuncionarios(DAO dao) {
-        Funcionario[] funcionarios = dao.getFuncionario();
-        if (funcionarios != null) {
-            for (Funcionario funcionario : funcionarios) {
-                System.out.println(funcionario);
-            }
-        } else {
-            System.out.println("Nenhum funcionário encontrado.");
+		return status;
+	}
+	
+	public boolean close() {
+		boolean status = false;
+		
+		try {
+			conexao.close();
+			status = true;
+		} catch (SQLException e) {
+			System.err.println(e.getMessage());
+		}
+		return status;
+	}
+	
+	public boolean inserirFuncionario(Funcionario funcionario) {
+		boolean status = false;
+		try {
+            Statement st = conexao.createStatement();
+            st.executeUpdate("INSERT INTO funcionarios (codigo, nome, sobrenome, salario) "
+                    + "VALUES (" + funcionario.getCodigo() + ", '" + funcionario.getNome() + "', '"
+                    + funcionario.getSobrenome() + "', " + funcionario.getSalario() + ");");
+            st.close();
+            status = true;
+        } catch (SQLException u) {
+            throw new RuntimeException(u);
         }
-    }
+        return status;
+	}
+	
+	public boolean atualizarFuncionario(Funcionario funcionario) {
+		boolean status = false;
+		try {  
+			Statement st = conexao.createStatement();
+			String sql = "UPDATE Funcionarios SET nome = '" + funcionario.getNome() + "', sobrenome = '"  
+				       + funcionario.getSobrenome() + "', salario = '" + funcionario.getSalario() + "'"
+					   + " WHERE codigo = " + funcionario.getCodigo();
+			st.executeUpdate(sql);
+			st.close();
+			status = true;
+		} catch (SQLException u) {  
+			throw new RuntimeException(u);
+		}
+		return status;
+	}
+	
+	public boolean excluirFuncionario(int codigo) {
+		boolean status = false;
+		try {  
+			Statement st = conexao.createStatement();
+			st.executeUpdate("DELETE FROM funcionarios WHERE codigo = " + codigo);
+			st.close();
+			status = true;
+		} catch (SQLException u) {  
+			throw new RuntimeException(u);
+		}
+		return status;
+	}
+	
+	
+	public Funcionario[] getFuncionario() {
+		Funcionario[] funcionarios = null;
+		
+		try {
+			Statement st = conexao.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,ResultSet.CONCUR_READ_ONLY);
+			ResultSet rs = st.executeQuery("SELECT * FROM funcionarios");		
+	         if(rs.next()){
+	             rs.last();
+	             funcionarios = new Funcionario[rs.getRow()];
+	             rs.beforeFirst();
 
-    public static void inserirFuncionario(Scanner scanner, DAO dao) {
-        System.out.print("Digite o código do funcionário: ");
-        int codigo = scanner.nextInt();
-        scanner.nextLine(); // Consume the newline character
+	             for(int i = 0; rs.next(); i++) {
+	                funcionarios[i] = new Funcionario(rs.getInt("codigo"), rs.getString("nome"), 
+	                		                  rs.getString("sobrenome"), rs.getDouble("Salario"));
+	             }
+	          }
+	          st.close();
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+		}
+		return funcionarios;
+	}
 
-        System.out.print("Digite o nome do funcionário: ");
-        String nome = scanner.nextLine();
-
-        System.out.print("Digite o sobrenome do funcionário: ");
-        String sobrenome = scanner.nextLine();
-
-        System.out.print("Digite o salário do funcionário: ");
-        double salario = scanner.nextDouble();
-
-        Funcionario novoFuncionario = new Funcionario(codigo, nome, sobrenome, salario);
-        if (dao.inserirFuncionario(novoFuncionario)) {
-            System.out.println("Funcionário inserido com sucesso.");
-        } else {
-            System.out.println("Erro ao inserir o funcionário.");
-        }
-    }
-
-    public static void excluirFuncionario(Scanner scanner, DAO dao) {
-        System.out.print("Digite o código do funcionário a ser excluído: ");
-        int codigo = scanner.nextInt();
-        if (dao.excluirFuncionario(codigo)) {
-            System.out.println("Funcionário excluído com sucesso.");
-        } else {
-            System.out.println("Erro ao excluir o funcionário.");
-        }
-    }
-
-    public static void atualizarFuncionario(Scanner scanner, DAO dao) {
-        System.out.print("Digite o código do funcionário a ser atualizado: ");
-        int codigo = scanner.nextInt();
-        scanner.nextLine(); // Consume the newline character
-
-        System.out.print("Digite o novo nome do funcionário: ");
-        String nome = scanner.nextLine();
-
-        System.out.print("Digite o novo sobrenome do funcionário: ");
-        String sobrenome = scanner.nextLine();
-
-        System.out.print("Digite o novo salário do funcionário: ");
-        double salario = scanner.nextDouble();
-
-        Funcionario funcionarioAtualizado = new Funcionario(codigo, nome, sobrenome, salario);
-        if (dao.atualizarFuncionario(funcionarioAtualizado)) {
-            System.out.println("Funcionário atualizado com sucesso.");
-        } else {
-            System.out.println("Erro ao atualizar o funcionário.");
-        }
-    }
+	
+	
 }

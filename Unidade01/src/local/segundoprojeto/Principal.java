@@ -1,4 +1,4 @@
-package local.segundoprojeto;
+
 
 import java.util.Scanner;
 
